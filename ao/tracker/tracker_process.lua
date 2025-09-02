@@ -3,9 +3,8 @@ local math = require("math")
 
 
 -- This process details
-PROCESS_NAME = "aos Tracker"
-PROCESS_ID = "-E8bZaG3KJMNqwCCcIqFKTVzqNZgXxqX9Q32I_M3-Wo"
-
+PROCESS_NAME = "aos TrackerAI"
+PROCESS_ID = "Ejr_9-PPwg9RV7FFilWIeap6Zm0CdmUEbevGzPwAOd0"
 
 
 -- tables 
@@ -237,17 +236,49 @@ Handlers.add(
     function(m)
         local user = m.From
 
-         if not ValidateField(user, "user", m.From) then return end
+        if not ValidateField(user, "user", m.From) then return end
 
-         local transactions = UsersTable[user].transactions
-        -- Ensure appId exists in ReviewsTable
-         if transactions == nil then
-             SendFailure(m.From , "transactions not Found.")
+        UsersTable[user] = UsersTable[user] or {}
+        UsersTable[user].transactions = UsersTable[user].transactions or {}
+        
+        -- Check if transactions exist
+        if not next(UsersTable[user].transactions) then
+            SendFailure(m.From, "No transactions found.")
             return
         end
-        -- Fetch the info
-        local transactionsList  = UsersTable[user].transactions
-        SendSuccess(m.From , transactionsList)
+        
+        -- Format transactions according to the specified interface
+        local formattedTransactions = {}
+        
+        -- Process expense transactions
+        if UsersTable[user].transactions.Expense then
+            for id, transaction in pairs(UsersTable[user].transactions.Expense) do
+                table.insert(formattedTransactions, {
+                    id = transaction.id,
+                    category = transaction.category,
+                    description = transaction.description,
+                    date = transaction.date,
+                    type = "expense",
+                    amount = tonumber(transaction.amount) or 0
+                })
+            end
+        end
+        
+        -- Process income transactions
+        if UsersTable[user].transactions.Income then
+            for id, transaction in pairs(UsersTable[user].transactions.Income) do
+                table.insert(formattedTransactions, {
+                    id = transaction.id,
+                    category = transaction.category,
+                    description = transaction.description,
+                    date = transaction.date,
+                    type = "income",
+                    amount = tonumber(transaction.amount) or 0
+                })
+            end
+        end
+        
+        SendSuccess(m.From, formattedTransactions)
     end
 )
 
@@ -302,8 +333,8 @@ Handlers.add(
 
 
 Handlers.add(
-    "FetchUserCatergories",
-    Handlers.utils.hasMatchingTag("Action", "FetchUserCatergories"),
+    "FetchUserCategories",
+    Handlers.utils.hasMatchingTag("Action", "FetchUserCategories"),
     function(m)
         local user = m.From
 
@@ -318,6 +349,118 @@ Handlers.add(
         -- Fetch the info
         local catergoriesList  = UsersTable[user].catergories
         SendSuccess(m.From , catergoriesList)
+    end
+)
+
+
+-- Handler to add mock transactions
+Handlers.add(
+    "AddMockTransactions",
+    Handlers.utils.hasMatchingTag("Action", "AddMockTransactions"),
+    function(m)
+        local user = m.From
+        UsersTable[user] = UsersTable[user] or {}
+        UsersTable[user].transactions = UsersTable[user].transactions or {}
+        UsersTable[user].transactions.Expense = UsersTable[user].transactions.Expense or {}
+        UsersTable[user].transactions.Income = UsersTable[user].transactions.Income or {}
+        
+        -- Sample expense categories
+        local expenseCategories = {"Food", "Transport", "Entertainment", "Utilities", "Shopping"}
+        -- Sample income categories
+        local incomeCategories = {"Salary", "Freelance", "Investment", "Gift", "Bonus"}
+        
+        -- Add 15 expense transactions
+        for i = 1, 15 do
+            local transactionId = GenerateTransactionId()
+            local category = expenseCategories[math.random(#expenseCategories)]
+            local amount = tostring(math.random(10, 500))
+            local date = os.date("%Y-%m-%d", os.time() - math.random(0, 30)*24*60*60) -- Random date in last 30 days
+            
+            UsersTable[user].transactions.Expense[transactionId] = {
+                id = transactionId,
+                category = category,
+                description = "Expense transaction " .. i,
+                date = date,
+                createdTime = os.time() * 1000, -- Current time in milliseconds
+                amount = amount,
+                type = "Expense"
+            }
+        end
+        
+        -- Add 5 income transactions
+        for i = 1, 5 do
+            local transactionId = GenerateTransactionId()
+            local category = incomeCategories[math.random(#incomeCategories)]
+            local amount = tostring(math.random(500, 2000))
+            local date = os.date("%Y-%m-%d", os.time() - math.random(0, 30)*24*60*60) -- Random date in last 30 days
+            
+            UsersTable[user].transactions.Income[transactionId] = {
+                id = transactionId,
+                category = category,
+                description = "Income transaction " .. i,
+                date = date,
+                createdTime = os.time() * 1000, -- Current time in milliseconds
+                amount = amount,
+                type = "Income"
+            }
+        end
+        
+        SendSuccess(user, "20 mock transactions added successfully (15 expense, 5 income)")
+    end
+)
+
+-- Handler to add mock categories
+Handlers.add(
+    "AddMockCategories",
+    Handlers.utils.hasMatchingTag("Action", "AddMockCategories"),
+    function(m)
+        local user = m.From
+        UsersTable[user] = UsersTable[user] or {}
+        UsersTable[user].catergories = UsersTable[user].catergories or {}
+        
+        -- Add 5 expense categories
+        local expenseCategories = {
+            {name = "Food", description = "Food and dining expenses", icon = "🍕"},
+            {name = "Transport", description = "Transportation costs", icon = "🚗"},
+            {name = "Entertainment", description = "Entertainment expenses", icon = "🎬"},
+            {name = "Utilities", description = "Bills and utilities", icon = "💡"},
+            {name = "Shopping", description = "Shopping expenses", icon = "🛒"}
+        }
+        
+        for i, cat in ipairs(expenseCategories) do
+            local categoryId = GenerateCatergoryId()
+            UsersTable[user].catergories[categoryId] = {
+                id = categoryId,
+                name = cat.name,
+                description = cat.description,
+                icon = cat.icon,
+                createdTime = os.time() * 1000,
+                type = "Expense"
+            }
+        end
+        
+        -- Add 5 income categories
+        local incomeCategories = {
+            {name = "Salary", description = "Monthly salary", icon = "💰"},
+            {name = "Freelance", description = "Freelance income", icon = "💻"},
+            {name = "Investment", description = "Investment returns", icon = "📈"},
+            {name = "Gift", description = "Gifts received", icon = "🎁"},
+            {name = "Bonus", description = "Bonus income", icon = "✨"}
+        }
+        
+        for i, cat in ipairs(incomeCategories) do
+            local categoryId = GenerateCatergoryId()
+            UsersTable[user].catergories[categoryId] = {
+                id = categoryId,
+                name = cat.name,
+                description = cat.description,
+                icon = cat.icon,
+                createdTime = os.time() * 1000,
+                type = "Income"
+            }
+        end
+        
+        SendSuccess(user, "10 mock categories added successfully (5 expense, 5 income)")
     end
 )
 

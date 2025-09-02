@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Button, Segment, Popup, Icon } from "semantic-ui-react";
 
 interface DateRangePickerProps {

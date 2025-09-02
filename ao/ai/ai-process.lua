@@ -1,4 +1,10 @@
 local ApusAI = require('@apus/ai')
+
+PROCESS_NAME = "aos aoBudgetAI"
+PROCESS_ID = "CAqAjfPkvBJqtog9OrxUaS3iIVEcGzNkVlDwDM-e-dA"
+
+ApusAI_Debug = true 
+
 -- 1. Handler to listen for prompts
 Handlers.add(
   "SendRequest",
