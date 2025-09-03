@@ -330,28 +330,39 @@ Handlers.add(
     end
 )
 
-
-
 Handlers.add(
     "FetchUserCategories",
     Handlers.utils.hasMatchingTag("Action", "FetchUserCategories"),
     function(m)
         local user = m.From
 
-         if not ValidateField(user, "user", m.From) then return end
+        if not ValidateField(user, "user", m.From) then return end
 
-         local transactions = UsersTable[user].catergories
-        -- Ensure appId exists in ReviewsTable
-         if transactions == nil then
-             SendFailure(m.From , "Catergories not Found.")
+        UsersTable[user] = UsersTable[user] or {}
+        UsersTable[user].catergories = UsersTable[user].catergories or {}
+        
+        -- Check if categories exist
+        if not next(UsersTable[user].catergories) then
+            SendFailure(m.From, "No categories found.")
             return
         end
-        -- Fetch the info
-        local catergoriesList  = UsersTable[user].catergories
-        SendSuccess(m.From , catergoriesList)
+        
+        -- Format the response with just the basic category info
+        local formattedCategories = {}
+        
+        for categoryId, category in pairs(UsersTable[user].catergories) do
+            table.insert(formattedCategories, {
+                id = categoryId,
+                name = category.name or "",
+                icon = category.icon or "",
+                type = category.type or "",
+                description = category.description or ""
+            })
+        end
+        
+        SendSuccess(m.From, formattedCategories)
     end
 )
-
 
 -- Handler to add mock transactions
 Handlers.add(
@@ -459,14 +470,10 @@ Handlers.add(
                 type = "Income"
             }
         end
-        
+        print("Added 10 categories...")
         SendSuccess(user, "10 mock categories added successfully (5 expense, 5 income)")
     end
 )
-
-
-
-
 
 
 

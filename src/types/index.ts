@@ -16,6 +16,14 @@ export interface CategoryData {
   icon: string;
 }
 
+export interface CategoryTransactions {
+  id: string;
+  name: string;
+  icon: string;
+  type: string;
+  description: string;
+}
+
 export interface HistoryData {
   month: string;
   year: number;

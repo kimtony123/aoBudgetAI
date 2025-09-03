@@ -15,42 +15,21 @@ import FilterMenu from "./transactionsComponents/filterMenu";
 import DeleteModal from "./transactionsComponents/deleteModal";
 import { useConnection, useActiveAddress } from "@arweave-wallet-kit/react";
 import { useNavigation } from "../../../hooks/useNavigation";
-
-// Sample transaction data
-const sampleTransactions: Transaction[] = [
-  {
-    id: "1",
-    category: "Food",
-    description: "Groceries",
-    date: "2023-09-15",
-    type: "expense",
-    amount: -85.5,
-  },
-  {
-    id: "2",
-    category: "Salary",
-    description: "Monthly salary",
-    date: "2023-09-05",
-    type: "income",
-    amount: 2500.0,
-  },
-  // ... other sample transactions
-];
+import { message, createDataItemSigner, result } from "@permaweb/aoconnect";
 
 const Transactions: React.FC = () => {
-  const { connected } = useConnection(); // Check if wallet is connected
-  const address = useActiveAddress(); // Get the active address
-  const handleClick = useNavigation(); // Navigation hook
+  const { connected } = useConnection();
+  const address = useActiveAddress();
+  const handleClick = useNavigation();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  console.log("Wallet connected:", connected);
-  console.log("Active address:", address);
+  const trackerProcess = "Ejr_9-PPwg9RV7FFilWIeap6Zm0CdmUEbevGzPwAOd0";
 
-  const [transactions, setTransactions] = useState<Transaction[]>(
-    connected ? sampleTransactions : []
-  );
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<
     Transaction[]
-  >(connected ? sampleTransactions : []);
+  >([]);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({
@@ -62,11 +41,57 @@ const Transactions: React.FC = () => {
     null
   );
 
+  // Fetch transactions from AO process
+  const fetchTransactions = async () => {
+    if (!connected) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const messageResponse = await message({
+        process: trackerProcess,
+        tags: [{ name: "Action", value: "FetchUserTransactions" }],
+        signer: createDataItemSigner(window.arweaveWallet),
+      });
+
+      const resultResponse = await result({
+        message: messageResponse,
+        process: trackerProcess,
+      });
+
+      const { Messages, Error } = resultResponse;
+
+      if (Error) {
+        setError("Error fetching transactions: " + Error);
+        return;
+      }
+
+      if (!Messages || Messages.length === 0) {
+        setError("No transactions found");
+        return;
+      }
+
+      const lastMessage = Messages[Messages.length - 1];
+      const messageData = JSON.parse(lastMessage.Data);
+
+      if (messageData && messageData.code === 200) {
+        setTransactions(messageData.data);
+      } else {
+        setError(messageData.message || "Failed to fetch transactions");
+      }
+    } catch (error) {
+      console.error("Error fetching transactions:", error);
+      setError("Failed to fetch transactions. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Reset transactions when connection status changes
   useEffect(() => {
     if (connected) {
-      setTransactions(sampleTransactions);
-      setFilteredTransactions(sampleTransactions);
+      fetchTransactions();
     } else {
       setTransactions([]);
       setFilteredTransactions([]);
@@ -189,12 +214,29 @@ const Transactions: React.FC = () => {
         </Message>
       )}
 
+      {/* Loading State */}
+      {isLoading && (
+        <Message info>
+          <Message.Header>Loading Transactions</Message.Header>
+          <p>Please wait while we fetch your transactions...</p>
+        </Message>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <Message negative>
+          <Message.Header>Error</Message.Header>
+          <p>{error}</p>
+          <Button onClick={() => setError(null)}>Dismiss</Button>
+        </Message>
+      )}
+
       {connected ? (
         <Grid>
           <Grid.Row>
             <Grid.Column width={8}>
               <Header as="h2">Transaction History</Header>
-              {filteredTransactions.length === 0 && (
+              {!isLoading && filteredTransactions.length === 0 && (
                 <Message info>
                   <p>
                     No transactions found. Add some transactions to get started.
@@ -204,6 +246,13 @@ const Transactions: React.FC = () => {
             </Grid.Column>
             <Grid.Column width={8} textAlign="right">
               <DateRangePicker onDateRangeSelect={handleDateRangeSelect} />
+              <Button
+                icon="refresh"
+                onClick={fetchTransactions}
+                disabled={!connected || isLoading}
+                loading={isLoading}
+                style={{ marginLeft: "10px" }}
+              />
             </Grid.Column>
           </Grid.Row>
 
@@ -247,7 +296,6 @@ const Transactions: React.FC = () => {
         open={deleteModalOpen}
         onClose={() => setDeleteModalOpen(false)}
         onConfirm={handleDelete}
-        disabled={!connected}
       />
     </Container>
   );

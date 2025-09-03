@@ -36,12 +36,7 @@ const CategoryBreakdown: React.FC<CategoryBreakdownProps> = ({
               </Card.Header>
               <Card.Description>
                 <Statistic size="small">
-                  <Statistic.Value>
-                    {totalIncome.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </Statistic.Value>
+                  <Statistic.Value>{totalIncome.toFixed(2)}</Statistic.Value>
                   <Statistic.Label>USDA</Statistic.Label>
                 </Statistic>
                 <Progress
@@ -54,7 +49,7 @@ const CategoryBreakdown: React.FC<CategoryBreakdownProps> = ({
                   {(
                     (financialData[timeFilter].income / totalIncome) *
                     100
-                  ).toFixed(0)}
+                  ).toFixed(2)}
                   % of total income
                 </Progress>
               </Card.Description>
@@ -69,20 +64,16 @@ const CategoryBreakdown: React.FC<CategoryBreakdownProps> = ({
                   {incomeData.map((item, index) => (
                     <List.Item key={index}>
                       <Icon name={item.icon as any} color="green" />
-                      {item.category}:{" "}
-                      {item.amount.toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}{" "}
+                      {item.category}: {item.amount.toFixed(2)}
                       USDA
                       <Progress
-                        value={item.amount}
+                        value={item.amount.toFixed(2)}
                         total={totalIncome}
                         progress="percent"
                         color="green"
                         style={{ marginTop: "0.5em" }}
                       >
-                        {item.percentage}% of total income
+                        {item.percentage.toFixed(2)}% of total income
                       </Progress>
                     </List.Item>
                   ))}
@@ -101,12 +92,7 @@ const CategoryBreakdown: React.FC<CategoryBreakdownProps> = ({
               </Card.Header>
               <Card.Description>
                 <Statistic size="small">
-                  <Statistic.Value>
-                    {totalExpenses.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </Statistic.Value>
+                  <Statistic.Value>{totalExpenses.toFixed(2)}</Statistic.Value>
                   <Statistic.Label>USDA</Statistic.Label>
                 </Statistic>
                 <Progress
@@ -119,7 +105,7 @@ const CategoryBreakdown: React.FC<CategoryBreakdownProps> = ({
                   {(
                     (financialData[timeFilter].expenses / totalExpenses) *
                     100
-                  ).toFixed(0)}
+                  ).toFixed(2)}
                   % of total expenses
                 </Progress>
               </Card.Description>
@@ -134,20 +120,16 @@ const CategoryBreakdown: React.FC<CategoryBreakdownProps> = ({
                   {expenseData.map((item, index) => (
                     <List.Item key={index}>
                       <Icon name={item.icon as any} color="red" />
-                      {item.category}:{" "}
-                      {item.amount.toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}{" "}
+                      {item.category}: {item.amount.toFixed(0)}
                       USDA
                       <Progress
-                        value={item.amount}
+                        value={item.amount.toFixed(2)}
                         total={totalExpenses}
                         progress="percent"
                         color="red"
                         style={{ marginTop: "0.5em" }}
                       >
-                        {item.percentage}% of total expenses
+                        {item.percentage.toFixed(2)}% of total expenses
                       </Progress>
                     </List.Item>
                   ))}
