@@ -37,6 +37,10 @@ Traditional budgeting apps sell your data. aoBudgetAI protects it. By processing
 - **Styling:** Tailwind CSS
 - **Deployment:** Vercel
 
+- **Live Vercel Link:** https://aobudgetai.vercel.app/
+
+**Live Permaweb Link:**
+
 ## 📦 Installation & Setup
 
 1. **Clone the repository**
