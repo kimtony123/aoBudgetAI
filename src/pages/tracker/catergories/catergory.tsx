@@ -15,14 +15,14 @@ import {
 } from "semantic-ui-react";
 import DeleteModal from "./deleteModal";
 import Navbar from "../../../components/Navbar";
-import { useConnection, useActiveAddress } from "@arweave-wallet-kit/react";
+import { useConnection } from "@arweave-wallet-kit/react";
 import { useNavigation } from "../../../hooks/useNavigation";
 import { message, createDataItemSigner, result } from "@permaweb/aoconnect";
 import type { CategoryTransactions } from "../../../types";
 
 const RemoveCategory = () => {
   const { connected } = useConnection();
-  const address = useActiveAddress();
+
   const handleClick = useNavigation();
 
   const [incomeCategories, setIncomeCategories] = useState<
@@ -40,52 +40,6 @@ const RemoveCategory = () => {
   const [isAddingMock, setIsAddingMock] = useState(false);
 
   const trackerProcess = "Ejr_9-PPwg9RV7FFilWIeap6Zm0CdmUEbevGzPwAOd0";
-
-  // Sample mock category data using CategoryTransactions type
-  const mockCategories: CategoryTransactions[] = [
-    {
-      id: "1",
-      name: "Salary",
-      icon: "money",
-      type: "income",
-      description: "Monthly salary income",
-    },
-    {
-      id: "2",
-      name: "Investments",
-      icon: "line chart",
-      type: "income",
-      description: "Investment returns",
-    },
-    {
-      id: "3",
-      name: "Freelance",
-      icon: "laptop",
-      type: "income",
-      description: "Freelance work income",
-    },
-    {
-      id: "4",
-      name: "Rent",
-      icon: "home",
-      type: "expense",
-      description: "Monthly rent payment",
-    },
-    {
-      id: "5",
-      name: "Utilities",
-      icon: "lightbulb",
-      type: "expense",
-      description: "Electricity, water, etc.",
-    },
-    {
-      id: "6",
-      name: "Groceries",
-      icon: "shopping basket",
-      type: "expense",
-      description: "Food and household items",
-    },
-  ];
 
   // Fetch categories from AO process
   const fetchCategories = async () => {

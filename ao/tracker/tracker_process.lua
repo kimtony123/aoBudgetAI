@@ -94,9 +94,6 @@ Handlers.add(
         local type = m.Tags.type
         local user = m.From
 
-
-
-
         print("Here is the caller Process ID"..user)
         
         -- Field validation examples
@@ -108,7 +105,11 @@ Handlers.add(
         if not ValidateField(date, "date", m.From) then return end
         if not ValidateField(amount, "amount", m.From) then return end
         if not ValidateField(type, "type", m.From) then return end
-
+        -- Add this new validation for type value
+        if type ~= "Income" and type ~= "Expense" then
+            SendFailure(m.From, "Transaction type must be either 'Income' or 'Expense'")
+        return
+        end
 
         UsersTable = UsersTable or {}
         UsersTable[user] =  UsersTable[user] or {}

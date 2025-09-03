@@ -25,11 +25,6 @@ import type {
 } from "../../../types";
 import { message, createDataItemSigner, result } from "@permaweb/aoconnect";
 
-interface Tag {
-  name: string;
-  value: string;
-}
-
 const TrackerDashboard: React.FC = () => {
   const [timeFilter, setTimeFilter] = useState<string>("last35days");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -43,50 +38,6 @@ const TrackerDashboard: React.FC = () => {
   const address = useActiveAddress();
 
   const trackerProcess = "Ejr_9-PPwg9RV7FFilWIeap6Zm0CdmUEbevGzPwAOd0";
-
-  // Mock transaction data
-  const AppTokenData = [
-    {
-      id: "1",
-      category: "Salary",
-      description: "Monthly salary",
-      date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-      type: "income",
-      amount: 3000,
-    },
-    {
-      id: "2",
-      category: "Freelance",
-      description: "Web development project",
-      date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      type: "income",
-      amount: 1500,
-    },
-    {
-      id: "3",
-      category: "Housing",
-      description: "Monthly rent",
-      date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-      type: "expense",
-      amount: 1200,
-    },
-    {
-      id: "4",
-      category: "Food",
-      description: "Groceries",
-      date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      type: "expense",
-      amount: 300,
-    },
-    {
-      id: "5",
-      category: "Transportation",
-      description: "Gas and public transport",
-      date: new Date().toISOString(),
-      type: "expense",
-      amount: 150,
-    },
-  ];
 
   // Calculate financial data from transactions
   const calculateFinancialData = (
@@ -272,10 +223,7 @@ const TrackerDashboard: React.FC = () => {
     try {
       const messageResponse = await message({
         process: trackerProcess,
-        tags: [
-          { name: "Action", value: "AddMockTransactions" },
-          { name: "Data", value: JSON.stringify(AppTokenData) },
-        ],
+        tags: [{ name: "Action", value: "AddMockTransactions" }],
         signer: createDataItemSigner(window.arweaveWallet),
       });
 

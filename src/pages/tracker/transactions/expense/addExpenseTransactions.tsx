@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Container,
   Form,
@@ -8,122 +8,215 @@ import {
   Icon,
   Grid,
   Popup,
+  Loader,
 } from "semantic-ui-react";
-import { useNavigate } from "react-router-dom";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import type { AddTransaction } from "../../../../types";
-
-// Sample expense category data
-const expenseCategories = [
-  { id: "5", name: "Rent", type: "expense", icon: "home" },
-  { id: "6", name: "Utilities", type: "expense", icon: "lightbulb" },
-  { id: "7", name: "Internet", type: "expense", icon: "wifi" },
-  { id: "8", name: "Groceries", type: "expense", icon: "shopping basket" },
-  { id: "9", name: "Transportation", type: "expense", icon: "car" },
-  { id: "10", name: "Entertainment", type: "expense", icon: "gamepad" },
-];
+import { useConnection } from "@arweave-wallet-kit/react";
+import { useNavigation } from "../../../../hooks/useNavigation";
+import { message, createDataItemSigner, result } from "@permaweb/aoconnect";
+import type { CategoryTransactions } from "../../../../types";
 
 const AddExpenseTransaction = () => {
-  const navigate = useNavigate();
+  const { connected } = useConnection();
+  const handleClick = useNavigation();
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [formData, setFormData] = useState<Omit<AddTransaction, "type">>({
-    category: "",
-    description: "",
-    date: new Date().toISOString().split("T")[0],
-    amount: 0,
-  });
-
-  // Convert date string to Date object for the date picker
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [categories, setCategories] = useState<CategoryTransactions[]>([]);
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState(""); // This will store the CATEGORY ID
+  const [amount, setAmount] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
 
-  // Navigation handler
-  const handleClick = (path: string) => () => {
-    navigate(path);
+  const trackerProcess = "Ejr_9-PPwg9RV7FFilWIeap6Zm0CdmUEbevGzPwAOd0";
+
+  const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = event.target;
+    switch (name) {
+      case "amount":
+        setAmount(value);
+        break;
+      case "description":
+        setDescription(value);
+        break;
+      default:
+        break;
+    }
   };
 
-  // Handle form field changes
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  // Handle dropdown changes
+  // Handle dropdown changes - CRITICAL: We're storing the CATEGORY ID here
   const handleDropdownChange = (_e: React.SyntheticEvent, data: any) => {
-    const { name, value } = data;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    // data.value contains the category ID from the dropdown options
+    setCategory(data.value);
   };
 
   // Handle date selection
   const handleDateChange = (date: Date | null) => {
     setSelectedDate(date);
-    if (date) {
-      setFormData((prev) => ({
-        ...prev,
-        date: date.toISOString().split("T")[0],
-      }));
-    }
     setShowDatePicker(false);
   };
 
-  // Handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
+  // Fetch categories from AO process
+  const fetchCategories = async () => {
+    if (!connected) return;
+
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const messageResponse = await message({
+        process: trackerProcess,
+        tags: [{ name: "Action", value: "FetchUserCategories" }],
+        signer: createDataItemSigner(window.arweaveWallet),
+      });
+
+      const resultResponse = await result({
+        message: messageResponse,
+        process: trackerProcess,
+      });
+
+      const { Messages, Error: errorMessage } = resultResponse;
+
+      if (errorMessage) {
+        setError("Error fetching categories: " + errorMessage);
+        return;
+      }
+
+      if (!Messages || Messages.length === 0) {
+        setError("No categories found");
+        return;
+      }
+
+      const lastMessage = Messages[Messages.length - 1];
+      const messageData = JSON.parse(lastMessage.Data);
+
+      if (messageData && messageData.code === 200) {
+        // Filter for expense categories only
+        const expenseCategories = messageData.data.filter(
+          (cat: CategoryTransactions) => cat.type.toLowerCase() === "expense"
+        );
+        setCategories(expenseCategories);
+
+        // Redirect if no expense categories found
+        if (expenseCategories.length === 0) {
+          setError(
+            "No expense categories found. Please add some categories first."
+          );
+          setTimeout(() => {
+            handleClick("/addCategory")();
+          }, 2000);
+        }
+      } else {
+        setError(messageData.message || "Failed to fetch categories");
+      }
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+      setError("Failed to fetch categories. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle form submission with individual tags
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Validation
     if (
-      !formData.category ||
-      !formData.description ||
-      !formData.date ||
-      formData.amount <= 0
+      !category || // This is the CATEGORY ID
+      !description ||
+      !selectedDate ||
+      !amount ||
+      parseFloat(amount) <= 0
     ) {
       setError("Please fill in all fields with valid values");
       return;
     }
 
-    // Create the complete transaction data with type set to "expense"
-    const expenseTransaction: AddTransaction = {
-      ...formData,
-      type: "expense",
-    };
-
-    // Here you would typically send the data to your backend
-    console.log("Expense transaction data:", expenseTransaction);
-
-    // Show success message
-    setSuccess(true);
+    setIsSubmitting(true);
     setError("");
 
-    // Reset form
-    setFormData({
-      category: "",
-      description: "",
-      date: new Date().toISOString().split("T")[0],
-      amount: 0,
-    });
-    setSelectedDate(new Date());
+    try {
+      // Format the date properly
+      const dateStr = selectedDate.toISOString().split("T")[0];
+      const amountNum = parseFloat(amount);
 
-    // Hide success message after 3 seconds
-    setTimeout(() => setSuccess(false), 3000);
+      // Send transaction to AO process with individual tags (best practice)
+      const messageResponse = await message({
+        process: trackerProcess,
+        tags: [
+          { name: "Action", value: "AddTransaction" },
+          { name: "catergoryId", value: category }, // Sending CATEGORY ID here
+          { name: "description", value: description },
+          { name: "date", value: dateStr },
+          { name: "type", value: "expense" },
+          { name: "amount", value: amountNum.toString() },
+        ],
+        signer: createDataItemSigner(window.arweaveWallet),
+      });
+
+      const resultResponse = await result({
+        message: messageResponse,
+        process: trackerProcess,
+      });
+
+      const { Messages, Error: errorMessage } = resultResponse;
+
+      if (errorMessage) {
+        setError("Error adding transaction: " + errorMessage);
+        return;
+      }
+
+      if (!Messages || Messages.length === 0) {
+        setError("No response from server");
+        return;
+      }
+
+      const lastMessage = Messages[Messages.length - 1];
+      const messageData = JSON.parse(lastMessage.Data);
+
+      if (messageData && messageData.code === 200) {
+        // Show success message
+        setSuccess(true);
+
+        // Reset form
+        setDescription("");
+        setCategory(""); // Reset to empty string (no category selected)
+        setAmount("");
+        setSelectedDate(new Date());
+
+        // Hide success message after 3 seconds
+        setTimeout(() => setSuccess(false), 3000);
+      } else {
+        setError(messageData.message || "Failed to add transaction");
+      }
+    } catch (error) {
+      console.error("Error adding transaction:", error);
+      setError("Failed to add transaction. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  // Get category options for expenses
+  // Update categories when connection status changes
+  useEffect(() => {
+    if (connected) {
+      fetchCategories();
+    } else {
+      setCategories([]);
+    }
+  }, [connected]);
+
+  // Get category options for expenses - CRITICAL: Using ID as value
   const getCategoryOptions = () => {
-    return expenseCategories.map((category) => ({
+    return categories.map((category) => ({
       key: category.id,
       text: category.name,
-      value: category.id,
-      icon: category.icon,
+      value: category.id, // THIS IS CRITICAL - Using ID as the value
+      icon: category.icon || "money",
     }));
   };
 
@@ -146,6 +239,14 @@ const AddExpenseTransaction = () => {
     <Container style={{ marginTop: "2em", maxWidth: "600px" }}>
       <Header as="h1">Add Expense</Header>
 
+      {/* Wallet Connection Warning */}
+      {!connected && (
+        <Message warning>
+          <Message.Header>Wallet Not Connected</Message.Header>
+          <p>Please connect your wallet to add expenses.</p>
+        </Message>
+      )}
+
       {success && (
         <Message positive>
           <Message.Header>Success!</Message.Header>
@@ -160,6 +261,14 @@ const AddExpenseTransaction = () => {
         </Message>
       )}
 
+      {isLoading && (
+        <Message info>
+          <Message.Header>Loading Categories</Message.Header>
+          <p>Please wait while we fetch your expense categories...</p>
+          <Loader active inline="centered" />
+        </Message>
+      )}
+
       <Form onSubmit={handleSubmit}>
         <Form.Select
           label="Category"
@@ -168,16 +277,18 @@ const AddExpenseTransaction = () => {
           fluid
           selection
           options={getCategoryOptions()}
-          value={formData.category}
+          value={category} // This holds the CATEGORY ID
           onChange={handleDropdownChange}
+          disabled={!connected || isLoading || categories.length === 0}
         />
 
         <Form.Input
           label="Description"
           name="description"
           placeholder="Enter a description for this expense"
-          value={formData.description}
+          value={description}
           onChange={handleInputChange}
+          disabled={!connected}
         />
 
         <Form.Field>
@@ -216,13 +327,25 @@ const AddExpenseTransaction = () => {
           placeholder="0.00"
           step="0.01"
           min="0"
-          value={formData.amount || ""}
+          value={amount}
           onChange={handleInputChange}
+          disabled={!connected}
         />
 
         <Grid>
           <Grid.Column width={8}>
-            <Button type="submit" primary fluid>
+            <Button
+              type="submit"
+              primary
+              fluid
+              disabled={
+                !connected ||
+                isLoading ||
+                isSubmitting ||
+                categories.length === 0
+              }
+              loading={isSubmitting}
+            >
               <Icon name="save" />
               Add Expense
             </Button>
@@ -239,6 +362,17 @@ const AddExpenseTransaction = () => {
           </Grid.Column>
         </Grid>
       </Form>
+
+      {categories.length === 0 && connected && !isLoading && (
+        <Message info>
+          <Message.Header>No Expense Categories Found</Message.Header>
+          <p>You need to create expense categories before adding expenses.</p>
+          <Button primary onClick={handleClick("/addCategory")}>
+            <Icon name="plus" />
+            Add Categories
+          </Button>
+        </Message>
+      )}
 
       <Header as="h3" style={{ marginTop: "2em" }}>
         Expense Tips

@@ -10,24 +10,21 @@ import {
   Grid,
 } from "semantic-ui-react";
 import { useNavigate } from "react-router-dom";
-
-// Custom hook for navigation
-const useNavigation = () => {
-  const navigate = useNavigate();
-  const createClickHandler = (path: string) => () => {
-    navigate(path);
-  };
-  return createClickHandler;
-};
+import { useConnection } from "@arweave-wallet-kit/react";
+import { message, createDataItemSigner, result } from "@permaweb/aoconnect";
 
 const AddCategory = () => {
-  const handleClick = useNavigation();
+  const { connected } = useConnection();
+  const navigate = useNavigate();
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("");
   const [type, setType] = useState("");
   const [description, setDescription] = useState("");
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const trackerProcess = "Ejr_9-PPwg9RV7FFilWIeap6Zm0CdmUEbevGzPwAOd0";
 
   // Type options for dropdown
   const typeOptions = [
@@ -61,30 +58,80 @@ const AddCategory = () => {
     "education",
   ];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Simple validation
     if (!name || !icon || !type) {
-      setError("Please fill in all fields");
+      setError("Please fill in all required fields");
       return;
     }
 
-    // Here you would typically send the data to your backend
-    console.log("Category data:", { name, icon, type, description });
+    if (!connected) {
+      setError("Please connect your wallet first");
+      return;
+    }
 
-    // Show success message
-    setSuccess(true);
+    setIsSubmitting(true);
     setError("");
 
-    // Reset form
-    setName("");
-    setIcon("");
-    setType("");
-    setDescription("");
+    try {
+      // Send category to AO process with individual tags (best practice)
+      const messageResponse = await message({
+        process: trackerProcess,
+        tags: [
+          { name: "Action", value: "AddCategory" },
+          { name: "name", value: name },
+          { name: "icon", value: icon },
+          { name: "type", value: type },
+          { name: "description", value: description },
+        ],
+        signer: createDataItemSigner(window.arweaveWallet),
+      });
 
-    // Hide success message after 3 seconds
-    setTimeout(() => setSuccess(false), 3000);
+      const resultResponse = await result({
+        message: messageResponse,
+        process: trackerProcess,
+      });
+
+      const { Messages, Error: errorMessage } = resultResponse;
+
+      if (errorMessage) {
+        setError("Error creating category: " + errorMessage);
+        return;
+      }
+
+      if (!Messages || Messages.length === 0) {
+        setError("No response from server");
+        return;
+      }
+
+      const lastMessage = Messages[Messages.length - 1];
+      const messageData = JSON.parse(lastMessage.Data);
+
+      if (messageData && messageData.code === 200) {
+        // Show success message
+        setSuccess(true);
+
+        // Reset form
+        setName("");
+        setIcon("");
+        setType("");
+        setDescription("");
+
+        // Redirect after success
+        setTimeout(() => {
+          navigate("/trackerdashboard");
+        }, 1500);
+      } else {
+        setError(messageData.message || "Failed to create category");
+      }
+    } catch (err) {
+      console.error("Error creating category:", err);
+      setError("Failed to create category. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -95,6 +142,14 @@ const AddCategory = () => {
         Categories are used to group your transactions and track spending
         patterns.
       </Header>
+
+      {/* Wallet Connection Warning */}
+      {!connected && (
+        <Message warning>
+          <Message.Header>Wallet Not Connected</Message.Header>
+          <p>Please connect your wallet to create categories.</p>
+        </Message>
+      )}
 
       {success && (
         <Message positive>
@@ -117,6 +172,7 @@ const AddCategory = () => {
             placeholder="e.g., Groceries, Salary, Rent"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            disabled={!connected}
           />
         </Form.Field>
 
@@ -134,16 +190,20 @@ const AddCategory = () => {
             }))}
             value={icon}
             onChange={(_e, { value }) => setIcon(value as string)}
+            disabled={!connected}
           />
         </Form.Field>
+
         <Form.Field>
-          <label>Description.</label>
+          <label>Description</label>
           <input
             placeholder="It will help with AI analysis"
             value={description}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => setDescription(e.target.value)}
+            disabled={!connected}
           />
         </Form.Field>
+
         <Form.Field>
           <label>Type</label>
           <Dropdown
@@ -153,18 +213,30 @@ const AddCategory = () => {
             options={typeOptions}
             value={type}
             onChange={(_e, { value }) => setType(value as string)}
+            disabled={!connected}
           />
         </Form.Field>
 
         <Grid>
           <Grid.Column width={8}>
-            <Button type="submit" primary fluid>
+            <Button
+              type="submit"
+              primary
+              fluid
+              disabled={!connected || isSubmitting}
+              loading={isSubmitting}
+            >
               <Icon name="save" />
               Create Category
             </Button>
           </Grid.Column>
           <Grid.Column width={8}>
-            <Button type="button" fluid onClick={handleClick("/transactions")}>
+            <Button
+              type="button"
+              fluid
+              disabled={isSubmitting}
+              onClick={() => navigate("/trackerdashboard")}
+            >
               <Icon name="cancel" />
               Cancel
             </Button>
