@@ -145,6 +145,7 @@ const Transactions: React.FC = () => {
 
   // Export to CSV
   const exportToCSV = () => {
+    // This function should only be called when there are transactions
     if (!connected || filteredTransactions.length === 0) return;
 
     const headers = "ID,Category,Description,Date,Type,Amount\n";
@@ -166,6 +167,13 @@ const Transactions: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Handle export button click
+  const handleExportClick = () => {
+    if (filteredTransactions.length > 0) {
+      exportToCSV();
+    }
   };
 
   // Delete transaction
@@ -194,9 +202,6 @@ const Transactions: React.FC = () => {
           dateRange.end
         ).toLocaleDateString()}`
       : "All Dates";
-
-  // Check if export should be disabled
-  const isExportDisabled = !connected || filteredTransactions.length === 0;
 
   return (
     <Container style={{ marginTop: "2em" }}>
@@ -249,7 +254,7 @@ const Transactions: React.FC = () => {
               <Button
                 icon="refresh"
                 onClick={fetchTransactions}
-                disabled={!connected || isLoading}
+                disabled={isLoading}
                 loading={isLoading}
                 style={{ marginLeft: "10px" }}
               />
@@ -264,10 +269,8 @@ const Transactions: React.FC = () => {
               typeFilter={typeFilter}
               onCategoryFilterChange={handleCategoryFilterChange}
               onTypeFilterChange={handleTypeFilterChange}
-              onExportCSV={exportToCSV}
+              onExportCSV={handleExportClick} // Use the wrapper function
               dateRangeText={dateRangeText}
-              disabled={!connected}
-              exportDisabled={isExportDisabled}
             />
           </Grid.Row>
 
@@ -277,7 +280,6 @@ const Transactions: React.FC = () => {
             <TransactionTable
               transactions={filteredTransactions}
               onDeleteTransaction={confirmDelete}
-              disabled={!connected}
             />
           </Grid.Row>
         </Grid>

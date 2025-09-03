@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
   Container,
   Header,
-  Dropdown,
   Button,
   Icon,
   Segment,
@@ -12,8 +11,15 @@ import {
   List,
   Divider,
   Progress,
+  Form,
+  Input,
 } from "semantic-ui-react";
-import { message, dryrun, createDataItemSigner } from "@permaweb/aoconnect";
+import {
+  message,
+  dryrun,
+  createDataItemSigner,
+  result,
+} from "@permaweb/aoconnect";
 import { useConnection } from "@arweave-wallet-kit/react";
 
 import Navbar from "../../../components/Navbar";
@@ -24,14 +30,15 @@ import {
 
 // Your AO Process ID for the AI agent
 const YOUR_AO_PROCESS_ID = "CAqAjfPkvBJqtog9OrxUaS3iIVEcGzNkVlDwDM-e-dA";
+const trackerProcess = "Ejr_9-PPwg9RV7FFilWIeap6Zm0CdmUEbevGzPwAOd0";
 
 const AIAnalysisPage = () => {
   const { connected } = useConnection();
-  const [selectedPeriod, setSelectedPeriod] = useState("last30days");
+  const [days, setDays] = useState("30");
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
   const [analysis, setAnalysis] = useState<any>(null);
   const [error, setError] = useState("");
-
   const [taskRef, setTaskRef] = useState("");
   const [userContext, setUserContext] = useState({
     income: 50000,
@@ -39,114 +46,60 @@ const AIAnalysisPage = () => {
     riskTolerance: "Medium",
   });
 
-  // Time period options
-  const timeOptions = [
-    { key: "last7days", text: "Last 7 days", value: "last7days" },
-    { key: "last30days", text: "Last 30 days", value: "last30days" },
-    { key: "last90days", text: "Last 90 days", value: "last90days" },
-    { key: "last365days", text: "Last 365 days", value: "last365days" },
-  ];
-
-  // Mock transaction data (replace with real data from your app)
-  const mockTransactions = [
-    {
-      id: "1",
-      category: "Salary",
-      description: "Monthly salary",
-      date: "2025-09-01",
-      type: "income",
-      amount: 2500.0,
-    },
-    {
-      id: "2",
-      category: "Rent",
-      description: "Apartment rent",
-      date: "2025-08-28",
-      type: "expense",
-      amount: -1200.0,
-    },
-    {
-      id: "3",
-      category: "Groceries",
-      description: "Weekly groceries",
-      date: "2025-08-30",
-      type: "expense",
-      amount: -150.0,
-    },
-    {
-      id: "4",
-      category: "Utilities",
-      description: "Electricity bill",
-      date: "2025-08-31",
-      type: "expense",
-      amount: -100.0,
-    },
-    {
-      id: "5",
-      category: "Entertainment",
-      description: "Movie tickets",
-      date: "2025-09-02",
-      type: "expense",
-      amount: -35.0,
-    },
-    {
-      id: "6",
-      category: "Freelance",
-      description: "Web design project",
-      date: "2023-09-20",
-      type: "income",
-      amount: 500.0,
-    },
-    {
-      id: "7",
-      category: "Dining",
-      description: "Restaurant dinner",
-      date: "2023-09-18",
-      type: "expense",
-      amount: -75.0,
-    },
-    {
-      id: "8",
-      category: "Transportation",
-      description: "Gasoline",
-      date: "2023-09-22",
-      type: "expense",
-      amount: -45.0,
-    },
-  ];
-
-  // Filter transactions based on selected period
-  const filterTransactionsByPeriod = () => {
-    const today = new Date();
-    const periodStart = new Date();
-
-    switch (selectedPeriod) {
-      case "last7days":
-        periodStart.setDate(today.getDate() - 7);
-        break;
-      case "last30days":
-        periodStart.setDate(today.getDate() - 30);
-        break;
-      case "last90days":
-        periodStart.setDate(today.getDate() - 90);
-        break;
-      case "last365days":
-        periodStart.setDate(today.getDate() - 365);
-        break;
-      default:
-        periodStart.setDate(today.getDate() - 30);
+  // Fetch transactions from AO process
+  const fetchTransactions = async () => {
+    if (!connected) {
+      throw new Error("Wallet not connected");
     }
 
-    return mockTransactions.filter((transaction) => {
-      const transactionDate = new Date(transaction.date);
-      return transactionDate >= periodStart && transactionDate <= today;
-    });
+    setIsFetching(true);
+    setError("");
+
+    try {
+      const messageResponse = await message({
+        process: trackerProcess,
+        tags: [
+          { name: "Action", value: "FetchUserTransactionsDays" },
+          { name: "days", value: days },
+        ],
+        signer: createDataItemSigner(window.arweaveWallet),
+      });
+
+      const resultResponse = await result({
+        message: messageResponse,
+        process: trackerProcess,
+      });
+
+      const { Messages, Error } = resultResponse;
+
+      if (Error) {
+        throw new Error("Error fetching transactions: " + Error);
+      }
+
+      if (!Messages || Messages.length === 0) {
+        throw new Error("No transactions found");
+      }
+
+      const lastMessage = Messages[Messages.length - 1];
+      const messageData = JSON.parse(lastMessage.Data);
+
+      if (messageData && messageData.code === 200) {
+        return messageData.data;
+      } else {
+        throw new Error(messageData.message || "Failed to fetch transactions");
+      }
+    } catch (error) {
+      console.error("Error fetching transactions:", error);
+      throw error;
+    } finally {
+      setIsFetching(false);
+    }
   };
 
   // Send transactions to AI agent for analysis
   const sendToAIAgent = async (transactions: any[]) => {
-    if (!connected) {
-      throw new Error("Wallet not connected");
+    if (transactions.length === 0) {
+      throw new Error("No transactions to analyze");
     }
 
     const ref = Date.now().toString();
@@ -158,7 +111,7 @@ const AIAnalysisPage = () => {
     // Create the optimized prompt
     const prompt = createAnalysisPrompt(
       enrichedTransactions,
-      selectedPeriod,
+      `last${days}days`,
       userContext
     );
 
@@ -260,31 +213,43 @@ const AIAnalysisPage = () => {
     setAnalysis(null);
 
     try {
-      const filteredTransactions = filterTransactionsByPeriod();
+      // Step 1: Fetch transactions
+      const transactions = await fetchTransactions();
 
-      if (filteredTransactions.length === 0) {
+      // Check if we have transactions
+      if (!transactions || transactions.length === 0) {
         setError("No transactions found for the selected period.");
         setIsLoading(false);
         return;
       }
 
-      // Send to AI agent and get reference
-      const reference = await sendToAIAgent(filteredTransactions);
+      // Step 2: Send to AI agent
+      const reference = await sendToAIAgent(transactions);
 
-      // Wait a moment for processing, then fetch results
+      // Step 3: Wait a moment for processing, then fetch results
       setTimeout(async () => {
         try {
           const analysisResult = await fetchAIResult(reference);
           setAnalysis(analysisResult);
         } catch (err) {
-          setError("Failed to get analysis results. Please try again.");
+          // Fix: Properly handle the unknown error type
+          const errorMessage =
+            err instanceof Error
+              ? err.message
+              : "Failed to get analysis results. Please try again.";
+          setError(errorMessage);
           console.error(err);
         } finally {
           setIsLoading(false);
         }
-      }, 5000); // Wait 5 seconds for processing
+      }, 30000); // Wait 5 seconds for processing
     } catch (err) {
-      setError("Failed to analyze transactions. Please try again.");
+      // Fix: Properly handle the unknown error type
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Failed to get analysis results. Please try again.";
+      setError(errorMessage);
       console.error(err);
       setIsLoading(false);
     }
@@ -296,20 +261,6 @@ const AIAnalysisPage = () => {
       style: "currency",
       currency: "USD",
     }).format(amount);
-  };
-
-  // Get color for risk level
-  const getRiskColor = (level: string) => {
-    switch (level) {
-      case "low":
-        return "green";
-      case "medium":
-        return "yellow";
-      case "high":
-        return "red";
-      default:
-        return "grey";
-    }
   };
 
   return (
@@ -340,22 +291,33 @@ const AIAnalysisPage = () => {
 
       <Segment>
         <Header as="h3">Select Analysis Period</Header>
-        <Dropdown
-          selection
-          options={timeOptions}
-          value={selectedPeriod}
-          onChange={(_, { value }) => setSelectedPeriod(value as string)}
-          style={{ marginBottom: "1rem" }}
-          disabled={!connected}
-        />
+        <Form>
+          <Form.Field>
+            <label>Number of days to analyze</label>
+            <Input
+              type="number"
+              min="1"
+              max="365"
+              value={days}
+              onChange={(e) => setDays(e.target.value)}
+              placeholder="Enter days (1-365)"
+              disabled={!connected || isFetching}
+            />
+          </Form.Field>
+        </Form>
 
         <Button
           primary
           onClick={handleAnalyze}
-          disabled={isLoading || !connected}
+          disabled={isLoading || !connected || isFetching}
+          style={{ marginTop: "1rem" }}
         >
           <Icon name="cloud" />
-          {isLoading ? "Analyzing..." : "Analyze Transactions"}
+          {isFetching
+            ? "Fetching Transactions..."
+            : isLoading
+            ? "Analyzing..."
+            : "Analyze Transactions"}
         </Button>
 
         {taskRef && (
@@ -373,7 +335,16 @@ const AIAnalysisPage = () => {
         </Message>
       )}
 
-      {isLoading && (
+      {isFetching && (
+        <Segment textAlign="center">
+          <Loader active inline="centered" size="large">
+            Fetching your transactions...
+          </Loader>
+          <p>Retrieving your financial data from the AO network</p>
+        </Segment>
+      )}
+
+      {isLoading && !isFetching && (
         <Segment textAlign="center">
           <Loader active inline="centered" size="large">
             Analyzing your transactions...
@@ -593,8 +564,8 @@ const AIAnalysisPage = () => {
             No analysis yet
           </Header>
           <p>
-            Select a time period and click "Analyze Transactions" to get started
-            with our AI financial analysis.
+            Enter the number of days and click "Analyze Transactions" to get
+            started with our AI financial analysis.
           </p>
         </Segment>
       )}

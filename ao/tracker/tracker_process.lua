@@ -20,6 +20,12 @@ function GetCurrentTime(msg)
 end
 
 
+-- Function to convert timestamp to date string
+function ConvertTimestampToDate(timestampMs)
+    -- Convert milliseconds to seconds (and ensure it's an integer)
+    local timeInSeconds = math.floor(timestampMs / 1000)
+    return os.date("%Y-%m-%d", timeInSeconds)
+end
 
 function To_base62(n)
     local chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -282,6 +288,89 @@ Handlers.add(
     end
 )
 
+
+Handlers.add(
+    "FetchUserTransactionsDays",
+    Handlers.utils.hasMatchingTag("Action", "FetchUserTransactionsDays"),
+    function(m)
+        local user = m.From
+        local days = tonumber(m.Tags.days) or 0
+        
+        if not ValidateField(user, "user", m.From) then return end
+        if days <= 0 then
+            SendFailure(m.From, "Please provide a valid number of days (greater than 0).")
+            return
+        end
+
+        UsersTable[user] = UsersTable[user] or {}
+        UsersTable[user].transactions = UsersTable[user].transactions or {}
+        
+        -- Check if transactions exist
+        if not next(UsersTable[user].transactions) then
+            SendFailure(m.From, "No transactions found.")
+            return
+        end
+        
+        -- Get current time in milliseconds
+        local currentTime = os.time() * 1000
+        
+        -- Calculate the start date (current time minus days in milliseconds)
+        local startTime = currentTime - (days * 24 * 60 * 60 * 1000)
+        local startDate = ConvertTimestampToDate(startTime)
+        
+        -- Format transactions according to the specified interface
+        local filteredTransactions = {}
+        
+        -- Function to check if a transaction date is within the range
+        local function isWithinDateRange(transactionDate)
+            local transactionTime = os.time({
+                year = tonumber(transactionDate:sub(1, 4)),
+                month = tonumber(transactionDate:sub(6, 7)),
+                day = tonumber(transactionDate:sub(9, 10))
+            }) * 1000
+            return transactionTime >= startTime
+        end
+        
+        -- Process expense transactions
+        if UsersTable[user].transactions.Expense then
+            for id, transaction in pairs(UsersTable[user].transactions.Expense) do
+                if isWithinDateRange(transaction.date) then
+                    table.insert(filteredTransactions, {
+                        id = transaction.id,
+                        category = transaction.category,
+                        description = transaction.description,
+                        date = transaction.date,
+                        type = "expense",
+                        amount = tonumber(transaction.amount) or 0
+                    })
+                end
+            end
+        end
+        
+        -- Process income transactions
+        if UsersTable[user].transactions.Income then
+            for id, transaction in pairs(UsersTable[user].transactions.Income) do
+                if isWithinDateRange(transaction.date) then
+                    table.insert(filteredTransactions, {
+                        id = transaction.id,
+                        category = transaction.category,
+                        description = transaction.description,
+                        date = transaction.date,
+                        type = "income",
+                        amount = tonumber(transaction.amount) or 0
+                    })
+                end
+            end
+        end
+        
+        if #filteredTransactions == 0 then
+            SendFailure(m.From, "No transactions found in the last " .. days .. " days.")
+        else
+            SendSuccess(m.From, filteredTransactions)
+        end
+    end
+)
+
 Handlers.add(
     "FetchUserIncomeTransactions",
     Handlers.utils.hasMatchingTag("Action", "FetchUserIncomeTransactions"),
@@ -364,12 +453,12 @@ Handlers.add(
     end
 )
 
--- Handler to add mock transactions
 Handlers.add(
     "AddMockTransactions",
     Handlers.utils.hasMatchingTag("Action", "AddMockTransactions"),
     function(m)
         local user = m.From
+        local time = GetCurrentTime(m)
         UsersTable[user] = UsersTable[user] or {}
         UsersTable[user].transactions = UsersTable[user].transactions or {}
         UsersTable[user].transactions.Expense = UsersTable[user].transactions.Expense or {}
@@ -385,14 +474,15 @@ Handlers.add(
             local transactionId = GenerateTransactionId()
             local category = expenseCategories[math.random(#expenseCategories)]
             local amount = tostring(math.random(10, 500))
-            local date = os.date("%Y-%m-%d", os.time() - math.random(0, 30)*24*60*60) -- Random date in last 30 days
-            
+            local randomOffset = math.random(0, 30) * 24 * 60 * 60 * 1000  -- Random milliseconds in 0-30 days
+            local date = ConvertTimestampToDate(time - randomOffset)
+              
             UsersTable[user].transactions.Expense[transactionId] = {
                 id = transactionId,
                 category = category,
                 description = "Expense transaction " .. i,
                 date = date,
-                createdTime = os.time() * 1000, -- Current time in milliseconds
+                createdTime = time, -- Current time in milliseconds
                 amount = amount,
                 type = "Expense"
             }
@@ -403,14 +493,17 @@ Handlers.add(
             local transactionId = GenerateTransactionId()
             local category = incomeCategories[math.random(#incomeCategories)]
             local amount = tostring(math.random(500, 2000))
-            local date = os.date("%Y-%m-%d", os.time() - math.random(0, 30)*24*60*60) -- Random date in last 30 days
+
+            -- Generate a random date in the last 30 days
+            local randomOffset = math.random(0, 30) * 24 * 60 * 60 * 1000  -- Random milliseconds in 0-30 days
+            local date = ConvertTimestampToDate(time - randomOffset)
             
             UsersTable[user].transactions.Income[transactionId] = {
                 id = transactionId,
                 category = category,
                 description = "Income transaction " .. i,
                 date = date,
-                createdTime = os.time() * 1000, -- Current time in milliseconds
+                createdTime = time, -- Use the same time variable as expenses
                 amount = amount,
                 type = "Income"
             }
@@ -426,6 +519,7 @@ Handlers.add(
     Handlers.utils.hasMatchingTag("Action", "AddMockCategories"),
     function(m)
         local user = m.From
+        local time = GetCurrentTime(m)
         UsersTable[user] = UsersTable[user] or {}
         UsersTable[user].catergories = UsersTable[user].catergories or {}
         
@@ -445,7 +539,7 @@ Handlers.add(
                 name = cat.name,
                 description = cat.description,
                 icon = cat.icon,
-                createdTime = os.time() * 1000,
+                createdTime = time,
                 type = "Expense"
             }
         end
@@ -466,7 +560,7 @@ Handlers.add(
                 name = cat.name,
                 description = cat.description,
                 icon = cat.icon,
-                createdTime = os.time() * 1000,
+                createdTime = time,
                 type = "Income"
             }
         end
@@ -475,5 +569,22 @@ Handlers.add(
     end
 )
 
+
+-- Handler to reset UsersTable
+Handlers.add(
+    "ResetUsersTable",
+    Handlers.utils.hasMatchingTag("Action", "ResetUsersTable"),
+    function(m)
+
+        if m.From == ao.id then
+            UsersTable = {}
+            CatergoryCounter = 0
+            TransactionCounter = 0
+            SendSuccess(m.From, "UsersTable has been reset successfully. All counters reset to zero.")
+           else
+            SendFailure(m.From , "You aint The process Owner")
+        end
+        end
+)
 
 
