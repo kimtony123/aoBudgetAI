@@ -294,9 +294,11 @@ Handlers.add(
     Handlers.utils.hasMatchingTag("Action", "FetchUserTransactionsDays"),
     function(m)
         local user = m.From
-        local days = tonumber(m.Tags.days) or 0
+        local days = tonumber(m.Tags.days)
         
         if not ValidateField(user, "user", m.From) then return end
+        if not ValidateField(days, "days", m.From) then return end
+
         if days <= 0 then
             SendFailure(m.From, "Please provide a valid number of days (greater than 0).")
             return
