@@ -13,13 +13,13 @@ import DateRangePicker from "./transactionsComponents/dateRangePicker";
 import TransactionTable from "./transactionsComponents/transactionsTable";
 import FilterMenu from "./transactionsComponents/filterMenu";
 import DeleteModal from "./transactionsComponents/deleteModal";
-import { useConnection, useActiveAddress } from "@arweave-wallet-kit/react";
+import { useConnection } from "@arweave-wallet-kit/react";
 import { useNavigation } from "../../../hooks/useNavigation";
 import { message, createDataItemSigner, result } from "@permaweb/aoconnect";
 
 const Transactions: React.FC = () => {
   const { connected } = useConnection();
-  const address = useActiveAddress();
+
   const handleClick = useNavigation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

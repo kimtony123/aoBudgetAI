@@ -237,7 +237,9 @@ const AddExpenseTransaction = () => {
 
   return (
     <Container style={{ marginTop: "2em", maxWidth: "600px" }}>
-      <Header as="h1">Add Expense</Header>
+      <Header as="h1" textAlign="center">
+        Add Expense
+      </Header>
 
       {/* Wallet Connection Warning */}
       {!connected && (
