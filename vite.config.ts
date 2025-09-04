@@ -10,7 +10,25 @@ export default defineConfig({
     alias: {
       crypto: "crypto-browserify",
       stream: "stream-browserify",
+      "lodash-es": "lodash-es",
+    },
+    extensions: [".js", ".json", ".jsx", ".mjs", ".ts", ".tsx", ".vue"],
+  },
+  plugins: [
+    react(),
+    nodePolyfills({
+      // Some additional polyfills that might help with Semantic UI
+      globals: {
+        Buffer: true,
+        global: true,
+        process: true,
+      },
+    }),
+  ],
+  // Add this to handle the specific error
+  build: {
+    rollupOptions: {
+      external: ["lodash-es"],
     },
   },
-  plugins: [react(), nodePolyfills()],
 });
